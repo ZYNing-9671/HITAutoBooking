@@ -16,9 +16,12 @@ from selenium.webdriver.support.wait import WebDriverWait
 
 PlacePath={'游泳馆': "/html/body/div[1]/div/main/div/div/div[2]/div/div[6]/div/div/p",
            '正心楼乒乓球馆B': "/html/body/div[1]/div/main/div/div/div[2]/div/div[1]/div/div/p"}
-timePath={'早':"/html/body/div[1]/div[1]/main/div/div/div[4]/div[1]/div[2]/div/div[2]/div[1]/div[3]",
+timePathTomorrow={'早': "/html/body/div[1]/div[1]/main/div/div/div[4]/div[1]/div[2]/div/div[2]/div[1]/div[3]",
           '中':"/html/body/div[1]/div[1]/main/div/div/div[4]/div[1]/div[2]/div/div[2]/div[2]/div[3]",
           '晚':"/html/body/div[1]/div[1]/main/div/div/div[4]/div[1]/div[2]/div/div[2]/div[3]/div[3]"}
+timePathToday={'早': "/html/body/div[1]/div[1]/main/div/div/div[4]/div[1]/div[1]/div/div[2]/div[1]/div[3]",
+          '中':"/html/body/div[1]/div[1]/main/div/div/div[4]/div[1]/div[1]/div/div[2]/div[2]/div[3]",
+          '晚':"/html/body/div[1]/div[1]/main/div/div/div[4]/div[1]/div[1]/div/div[2]/div[3]/div[3]"}
 class Booking(object):
 
     def __init__(self,kindPath,timeChoice):
@@ -73,6 +76,7 @@ class Booking(object):
 
     def Book(self):
 
+        time.sleep(0.5)
         self.wait_and_click_path(self.kindPath)
         self.log("进入预约界面")
         ConfirmButton = self.wait_element_path("/html/body/div[1]/div[3]/div/div/div[3]/button")
@@ -84,30 +88,50 @@ class Booking(object):
             time.sleep(1)
             ConfirmButton.click()
 
-        time.sleep(0.5)
-
         if '晚' in self.timeChoice:
-            print("尝试预约：晚")
-            if self.BookElement(timePath.get('晚')):
+            self.log("尝试预约：明日晚")
+            if self.BookElement(timePathTomorrow.get('晚')):
                 return
 
         time.sleep(0.5)
 
         if '中' in self.timeChoice:
-            print("尝试预约：中")
-            if self.BookElement(timePath.get('中')):
+            self.log("尝试预约：明日中")
+            if self.BookElement(timePathTomorrow.get('中')):
                 return
 
         time.sleep(0.5)
 
         if '早' in self.timeChoice:
-            print("尝试预约：早")
-            if self.BookElement(timePath.get('早')):
+            self.log("尝试预约：明日早")
+            if self.BookElement(timePathTomorrow.get('早')):
                 return
 
+        time.sleep(0.5)
+
+        if '晚' in self.timeChoice:
+            self.log("尝试预约：今日晚")
+            if self.BookElement(timePathToday.get('晚')):
+                return
+
+        time.sleep(0.5)
+
+        if '中' in self.timeChoice:
+            self.log("尝试预约：今日中")
+            if self.BookElement(timePathToday.get('中')):
+                return
+
+        time.sleep(0.5)
+
+        if '早' in self.timeChoice:
+            self.log("尝试预约：今日早")
+            if self.BookElement(timePathToday.get('早')):
+                return
+
+        time.sleep(0.5)
 
 
-        print("没有可用的预约，已返回")
+        self.log("没有可用的预约，已返回")
         return
 
 
@@ -117,16 +141,29 @@ class Booking(object):
         :param path: 资源按钮对应的Xpath
         :return:  如果预约成功，则返回True
         """
-        button = self.wait_element_path(path)
+        try:
+            button = self.driver.find_element_by_xpath(path)
+        except NoSuchElementException:
+            self.log("预约尚未开放！")
+            return
+
         if '已满' in button.text:
-            print("预约失败，目标时间已满！")
+            self.log("预约失败，目标时间已满！")
             return False
-        print("目标时间未满，开始预约")
+        self.log("目标时间未满，开始预约")
         time.sleep(1)
         button.click()
         time.sleep(1)
+        try:
+            self.log("寻找checkbox")
+            self.driver.find_element_by_xpath("/html/body/div[1]/div[4]/div/div/div[2]/div/div[2]/div[7]/div/div/div[1]/div/div").click()
+        except Exception:
+            self.log("未发现checkbox")
+
+        time.sleep(0.5)
         self.wait_and_click_path("/html/body/div[1]/div[4]/div/div/div[3]/button[2]/span")
         time.sleep(0.5)
+        self.log("预约成功！")
         return True
 
 
