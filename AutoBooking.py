@@ -1,6 +1,7 @@
 
 import platform
 
+import selenium
 from selenium import webdriver
 import time
 
@@ -14,8 +15,11 @@ import sys
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.wait import WebDriverWait
 
-PlacePath={'游泳馆': "/html/body/div[1]/div/main/div/div/div[2]/div/div[6]/div/div/p",
-           '正心楼乒乓球馆B': "/html/body/div[1]/div/main/div/div/div[2]/div/div[1]/div/div/p"}
+
+
+PlacePath={'游泳馆': "/html/body/div[1]/div/main/div/div/div[2]/div/div[9]/div/div/p"}
+
+
 timePathToday={'早': "/html/body/div[1]/div[1]/main/div/div/div[4]/div[1]/div[1]/div/div[2]/div[1]/div[3]",
           '上': "/html/body/div[1]/div[1]/main/div/div/div[4]/div[1]/div[1]/div/div[2]/div[2]/div[3]",
           '中':"/html/body/div[1]/div[1]/main/div/div/div[4]/div[1]/div[1]/div/div[2]/div[3]/div[3]",
@@ -160,28 +164,36 @@ class Booking(object):
         """
         try:
             button = self.driver.find_element_by_xpath(path)
+            sub_button=self.driver.find_element_by_xpath(path+"/button[1]")
         except NoSuchElementException:
-            self.log("预约尚未开放！")
+            self.log("Exception:预约尚未开放！")
             return
 
-        if '已满' in button.text:
-            self.log("预约失败，目标时间已满！")
+        if sub_button.get_attribute('disabled')=="true":
+            self.log("Exception:预约失败，不在可预约时间")
             return False
+        if '已满' in button.text:
+            self.log("Exception:预约失败，目标时间已满！")
+            return False
+
         self.log("目标时间未满，开始预约")
         time.sleep(1)
-        button.click()
+        try:
+            button.click()
+        except selenium.common.exceptions.ElementNotInteractableException:
+            self.log("Error:按钮不可交互")
+            return
         time.sleep(1)
         try:
-            self.log("寻找checkbox")
             self.driver.find_element_by_xpath("/html/body/div[1]/div[4]/div/div/div[2]/div/div[2]/div[7]/div/div/div[1]/div/div").click()
         except Exception:
-            self.log("未发现checkbox")
+            self.log("Exception:未发现checkbox")
 
         time.sleep(0.5)
         self.wait_and_click_path("/html/body/div[1]/div[4]/div/div/div[3]/button[2]/span")
         time.sleep(0.5)
         self.log("预约成功！")
-        time.sleep(0.5)
+        time.sleep(2)
         return True
 
 
