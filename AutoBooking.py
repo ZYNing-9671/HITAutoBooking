@@ -1,67 +1,89 @@
-
+#!/bin/usr/python3
 import platform
-
 import selenium
-from selenium import webdriver
 import time
+import datetime
+import sys
+import argparse
+import logging
 
-from selenium.common.exceptions import TimeoutException, UnexpectedAlertPresentException, NoSuchElementException,JavascriptException
+from selenium import webdriver
+from selenium.common.exceptions import TimeoutException, UnexpectedAlertPresentException, NoSuchElementException, JavascriptException
 from selenium.webdriver import ActionChains
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
-import sys
-
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.wait import WebDriverWait
 
 
+PlacePath = "/html/body/div[1]/div/main/div/div/div[2]/div/div[{0}]/div/div/p"
+timePathToday = "/html/body/div[1]/div[1]/main/div/div/div[4]/div[1]/div[1]/div/div[2]/div[{0}]/div[3]"
+timePathTomorrow = "/html/body/div[1]/div[1]/main/div/div/div[4]/div[1]/div[2]/div/div[2]/div[{0}]/div[3]"
 
-PlacePath={'游泳馆': "/html/body/div[1]/div/main/div/div/div[2]/div/div[9]/div/div/p"}
+timeSlice1 = [
+    '06:00 - 07:30',
+    '08:00 - 09:00',
+    '09:00 - 10:00',
+    '10:00 - 11:00',
+    '11:00 - 12:00',
+    '12:00 - 13:00',
+    '13:00 - 14:00',
+    '14:00 - 15:00',
+    '15:00 - 16:00',
+    '16:00 - 17:00',
+    '17:00 - 18:00',
+    '18:00 - 19:00',
+    '19:00 - 20:00',
+    '20:00 - 21:00',
+    '21:00 - 22:00']
+timeSlice2 = [
+    '06:00 - 08:00',
+    '09:00 - 11:00',
+    '12:00 - 14:00',
+    '18:00 - 20:00']
+
+placeMap = {
+    '羽毛球正心': [12, timeSlice1, '羽毛球预约-正心楼羽毛球馆B'],
+    '游泳馆': [9, timeSlice2, '游泳预约-游泳馆（4楼泳池）']
+}
 
 
-timePathToday={'早': "/html/body/div[1]/div[1]/main/div/div/div[4]/div[1]/div[1]/div/div[2]/div[1]/div[3]",
-          '上': "/html/body/div[1]/div[1]/main/div/div/div[4]/div[1]/div[1]/div/div[2]/div[2]/div[3]",
-          '中':"/html/body/div[1]/div[1]/main/div/div/div[4]/div[1]/div[1]/div/div[2]/div[3]/div[3]",
-          '晚':"/html/body/div[1]/div[1]/main/div/div/div[4]/div[1]/div[1]/div/div[2]/div[4]/div[3]"}
-timePathTomorrow={'早': "/html/body/div[1]/div[1]/main/div/div/div[4]/div[1]/div[2]/div/div[2]/div[1]/div[3]",
-          '上':"/html/body/div[1]/div[1]/main/div/div/div[4]/div[1]/div[2]/div/div[2]/div[2]/div[3]",
-          '中':"/html/body/div[1]/div[1]/main/div/div/div[4]/div[1]/div[2]/div/div[2]/div[3]/div[3]",
-          '晚':"/html/body/div[1]/div[1]/main/div/div/div[4]/div[1]/div[2]/div/div[2]/div[4]/div[3]"}
 
 class Booking(object):
 
-    def __init__(self,kindPath,timeChoice):
-        self.kindPath = kindPath
-        self.timeChoice= timeChoice
-        self.user_id = id
-        self.password = Password
+    def __init__(self):
         self.home_url = 'https://booking.hit.edu.cn/sport//#/'
 
+    def start(self):
         chrome_options = Options()
         sysstr = platform.system()
-        #根据系统类型配置chrome_options
-        if (sysstr == "Linux"):
+        # 根据系统类型配置chrome_options
+        if sysstr == "Linux":
             chrome_options.add_argument('--headless')  # 16年之后，chrome给出的解决办法，抢了PhantomJS饭碗
             chrome_options.add_argument('--disable-gpu')
             chrome_options.add_argument('--no-sandbox')  # root用户不加这条会无法运行
             self.driver = webdriver.Chrome(chrome_options=chrome_options)
+        elif sysstr == "Windows":
+            chrome_options.add_argument('--no-sandbox')
+            self.driver = webdriver.Chrome(chrome_options=chrome_options)
         else:
             self.driver = webdriver.Chrome(chrome_options=chrome_options)
-
-        self.log("调用chrome")
+        logger.debug("调用chrome")
+        t = time.time()
         while self.home_url != self.driver.current_url:
-            self.log("尝试登陆")
+            if time.time() - t > 10:
+                logger.error('登录超时，请检查学号密码')
+                return
+            logger.debug("尝试登陆")
             try:
                 self.login()
             except Exception as e:
-                print(str(e))
-                Booking.log(str(e))
+                logger.debug(str(e))
                 self.driver.refresh()
-            time.sleep(0.5)
+            time.sleep(1)
 
         self.Book()
-        self.log("------------")
         self.driver.quit()
         return
 
@@ -70,22 +92,21 @@ class Booking(object):
         time.sleep(0.5)
         if self.home_url == self.driver.current_url:
             return
-        self.driver.find_element_by_id("username").send_keys(id)
-        self.driver.find_element_by_id("password").send_keys(Password)
+        self.driver.find_element_by_id("username").send_keys(args.id)
+        self.driver.find_element_by_id("password").send_keys(args.pw)
         self.driver.find_element_by_id("password").send_keys(Keys.ENTER)
         time.sleep(0.5)
-        if 'https://booking.hit.edu.cn/sport//#/' == self.driver.current_url:
-            self.log("登陆成功")
+        if self.home_url == self.driver.current_url:
+            logger.info("登陆成功")
         else:
-            self.log("登陆失败")
+            logger.error("登陆失败")
         return
 
 
     def Book(self):
-
         time.sleep(0.5)
-        self.wait_and_click_path(self.kindPath)
-        self.log("进入预约界面")
+        self.wait_and_click_path(PlacePath.format(placeMap[args.place][0]))
+        logger.info("进入预约界面")
         ConfirmButton = self.wait_element_path("/html/body/div[1]/div[3]/div/div/div[3]/button")
         try:
             time.sleep(1)
@@ -95,68 +116,29 @@ class Booking(object):
             time.sleep(1)
             ConfirmButton.click()
 
-        if '晚' in self.timeChoice:
-            self.log("尝试预约：明日晚")
-            if self.BookElement(timePathTomorrow.get('晚')):
+        timePath = ''
+        if args.today:
+            logger.info("预约今日的。。。")
+            timePath = timePathToday
+        else:
+            logger.info("预约明日的。。。")
+            timePath = timePathTomorrow
+        for char in args.timeFlag:
+            logger.info('预约{0}的{1}'.format(placeMap[args.place][2], placeMap[args.place][1][ord(char) - ord('A')]))
+            if self.BookElement(timePath.format(ord(char) - ord('A') + 1)):
+                logger.info("以下是预约成功的信息：")
+                logger.info('预定信息如下')
+                if args.today:
+                    logger.info('学号={0},场馆={1},时间段为今天的{2}'.format(args.id, placeMap[args.place][2], placeMap[args.place][1][ord(char) - ord('A')]))
+                else:
+                    logger.info('学号={0},场馆={1},时间段为明天的{2}'.format(args.id, placeMap[args.place][2], placeMap[args.place][1][ord(char) - ord('A')]))
                 return
-
-        time.sleep(0.5)
-
-        if '中' in self.timeChoice:
-            self.log("尝试预约：明日中")
-            if self.BookElement(timePathTomorrow.get('中')):
-                return
-
-        time.sleep(0.5)
-
-        if '上' in self.timeChoice:
-            self.log("尝试预约：明日上")
-            if self.BookElement(timePathTomorrow.get('上')):
-                return
-
-        time.sleep(0.5)
-
-        if '早' in self.timeChoice:
-            self.log("尝试预约：明日早")
-            if self.BookElement(timePathTomorrow.get('早')):
-                return
-
-        time.sleep(0.5)
-
-        if '晚' in self.timeChoice:
-            self.log("尝试预约：今日晚")
-            if self.BookElement(timePathToday.get('晚')):
-                return
-
-        time.sleep(0.5)
-
-        if '中' in self.timeChoice:
-            self.log("尝试预约：今日中")
-            if self.BookElement(timePathToday.get('中')):
-                return
-
-        time.sleep(0.5)
-
-        if '上' in self.timeChoice:
-            self.log("尝试预约：今日上")
-            if self.BookElement(timePathToday.get('上')):
-                return
-
-        time.sleep(0.5)
-
-        if '早' in self.timeChoice:
-            self.log("尝试预约：今日早")
-            if self.BookElement(timePathToday.get('早')):
-                return
-
-        time.sleep(0.5)
-
-
-        self.log("没有可用的预约，已返回")
+            time.sleep(0.5)
+        logger.warning("没有可用的预约，已返回")
         return
 
 
-    def BookElement(self,path):
+    def BookElement(self, path):
         """
         预约具体的资源
         :param path: 资源按钮对应的Xpath
@@ -164,35 +146,35 @@ class Booking(object):
         """
         try:
             button = self.driver.find_element_by_xpath(path)
-            sub_button=self.driver.find_element_by_xpath(path+"/button[1]")
+            sub_button = self.driver.find_element_by_xpath(path + "/button[1]")
         except NoSuchElementException:
-            self.log("Exception:预约尚未开放！")
+            logger.warning("Exception:预约尚未开放！")
             return
 
-        if sub_button.get_attribute('disabled')=="true":
-            self.log("Exception:预约失败，不在可预约时间")
+        if sub_button.get_attribute('disabled') == "true":
+            logger.warning("Exception:预约失败，不在可预约时间")
             return False
         if '已满' in button.text:
-            self.log("Exception:预约失败，目标时间已满！")
+            logger.warning("Exception:预约失败，目标时间已满！")
             return False
 
-        self.log("目标时间未满，开始预约")
+        logger.info("目标时间未满，开始预约")
         time.sleep(1)
         try:
             button.click()
         except selenium.common.exceptions.ElementNotInteractableException:
-            self.log("Error:按钮不可交互")
+            logger.error("Error:按钮不可交互")
             return
         time.sleep(1)
         try:
             self.driver.find_element_by_xpath("/html/body/div[1]/div[4]/div/div/div[2]/div/div[2]/div[7]/div/div/div[1]/div/div").click()
         except Exception:
-            self.log("Exception:未发现checkbox")
+            logger.error("Exception:未发现checkbox")
 
         time.sleep(0.5)
         self.wait_and_click_path("/html/body/div[1]/div[4]/div/div/div[3]/button[2]/span")
         time.sleep(0.5)
-        self.log("预约成功！")
+        logger.info("预约成功！")
         time.sleep(2)
         return True
 
@@ -281,33 +263,76 @@ class Booking(object):
         self.driver.get(url)
         self.driver.implicitly_wait(5)
 
-    def log(self,msg):
-        print(id+" "+msg)
-        f.write(id)
-        f.write(time.strftime(" %Y-%m-%d %H:%M:%S ", time.localtime(time.time())))
-        f.write(msg+"\n")
+    def checkArgs(self):
+        for char in args.timeFlag:
+            if len(placeMap[args.place][1]) <= ord(char) - ord('A'):
+                logger.error("当前场馆[{1}]没有时间段{0}".format(char, args.place))
+                return False
+        return True
 
+    def info(self):
+        logger.info('预定信息如下')
+        if args.today:
+            logger.info('学号={0},场馆={1},时间段为今天的：'.format(args.id, placeMap[args.place][2]))
+        else:
+            logger.info('学号={0},场馆={1},时间段为明天的：'.format(args.id, placeMap[args.place][2]))
+        strs = []
+        for char in args.timeFlag:
+            strs.append(placeMap[args.place][1][ord(char) - ord('A')])
+        logger.info(strs)
+
+    def wait(self):
+        logger.info('等待到下一个9点之后开始预约')
+        while datetime.datetime.now().hour < 9 or datetime.datetime.now().hour >= 12:
+            time.sleep(10)
+        time.sleep(10)
 
 
 if __name__ == '__main__':
-    id=""
-    Password=""
-    f = open('log', 'a')
-    if len(sys.argv)==5:
-        id=sys.argv[1]
-        Password=sys.argv[2]
-        timeChoice = sys.argv[4]
-        if(not ('早' in timeChoice or '中' in timeChoice or '晚' in timeChoice )):
-            print("参数错误，请设置预约时间 早/中/晚")
-            sys.exit(0)
+    parser = argparse.ArgumentParser(description='HIT 资源自动预约脚本')
+    parser.add_argument('id', type=str, help="学号")
+    parser.add_argument('pw', type=str, help="密码")
+    parser.add_argument('place', type=str, choices=['游泳馆', '羽毛球正心'], help="运动场馆")
+    parser.add_argument('timeFlag', type=str, help="预约时间段代号")
+    parser.add_argument('-t', '--test', action="store_true", help="仅输出信息，不进行预约")
+    parser.add_argument('--today', action="store_true", help="预约今天，否则都是预约明天")
+    parser.add_argument('-v', '--verbose', action="store_true", help='详细输出')
+    parser.add_argument('--wait', action="store_true", help='等待到下一个9点之后开始预约(12点后执行)')
+    # parser.add_argument('-d', '--drv', type=str, default='', help="chromedriver路径")
+    parser.add_argument('-l', '--log', type=str, default='./log.txt', help="日志文件路径")
+    args = parser.parse_args()
 
-        if(PlacePath.get(sys.argv[3]) != None):
-            r = Booking(PlacePath.get(sys.argv[3]), sys.argv[4])
+    # 加载日志
+    if 'logger' not in vars():
+        logger = logging.getLogger(name='AutoBooking')
+        level = logging.INFO
+        if args.verbose:
+            level = logging.DEBUG
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        # Setup file handler
+        fhandler = logging.FileHandler(args.log)
+        fhandler.setLevel(level)
+        fhandler.setFormatter(formatter)
+        # Configure stream handler for the cells
+        chandler = logging.StreamHandler()
+        chandler.setLevel(level)
+        chandler.setFormatter(formatter)
+        # Add both handlers
+        logger.addHandler(fhandler)
+        logger.addHandler(chandler)
+        logger.setLevel(level)
+        # # Show the handlers
+        # for hdr in logger.handlers:
+        #     print(hdr)
+        # # Log Something
+        # logger.info("Test info")
+
+    booking = Booking()
+    if args.wait:
+        booking.info()
+        booking.wait()
+    if booking.checkArgs():
+        if args.test:
+            booking.info()
         else:
-            print("参数错误，场馆未找到")
-        sys.exit(0)
-    else:
-        print("参数格式错误：id+密码+场馆类型（游泳馆）+时间（早中晚）")
-
-
-
+            booking.start()
