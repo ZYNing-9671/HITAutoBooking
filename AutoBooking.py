@@ -54,8 +54,10 @@ class Booking(object):
 
     def __init__(self):
         self.home_url = 'https://booking.hit.edu.cn/sport//#/'
+        self.refreshFlag = False
 
     def start(self):
+        self.home_url = 'https://booking.hit.edu.cn/sport//#/'
         chrome_options = Options()
         sysstr = platform.system()
         # 根据系统类型配置chrome_options
@@ -63,12 +65,14 @@ class Booking(object):
             chrome_options.add_argument('--headless')  # 16年之后，chrome给出的解决办法，抢了PhantomJS饭碗
             chrome_options.add_argument('--disable-gpu')
             chrome_options.add_argument('--no-sandbox')  # root用户不加这条会无法运行
-            self.driver = webdriver.Chrome(chrome_options=chrome_options)
+            self.driver = webdriver.Chrome(options=chrome_options)
         elif sysstr == "Windows":
             chrome_options.add_argument('--no-sandbox')
-            self.driver = webdriver.Chrome(chrome_options=chrome_options)
+            self.driver = webdriver.Chrome(options=chrome_options)
         else:
-            self.driver = webdriver.Chrome(chrome_options=chrome_options)
+            self.driver = webdriver.Chrome(options=chrome_options)
+
+        self.wait()
         logger.debug("调用chrome")
         t = time.time()
         while self.home_url != self.driver.current_url:
@@ -104,38 +108,47 @@ class Booking(object):
 
 
     def Book(self):
-        time.sleep(0.5)
-        self.wait_and_click_path(PlacePath.format(placeMap[args.place][0]))
-        logger.info("进入预约界面")
-        ConfirmButton = self.wait_element_path("/html/body/div[1]/div[3]/div/div/div[3]/button")
-        try:
-            time.sleep(1)
-            ConfirmButton.click()
-        except Exception:
-            self.driver.execute_script("arguments[0].scrollIntoView();", ConfirmButton)
-            time.sleep(1)
-            ConfirmButton.click()
-
-        timePath = ''
-        if args.today:
-            logger.info("预约今日的。。。")
-            timePath = timePathToday
-        else:
-            logger.info("预约明日的。。。")
-            timePath = timePathTomorrow
-        for char in args.timeFlag:
-            logger.info('预约{0}的{1}'.format(placeMap[args.place][2], placeMap[args.place][1][ord(char) - ord('A')]))
-            if self.BookElement(timePath.format(ord(char) - ord('A') + 1)):
-                logger.info("以下是预约成功的信息：")
-                logger.info('预定信息如下')
-                if args.today:
-                    logger.info('学号={0},场馆={1},时间段为今天的{2}'.format(args.id, placeMap[args.place][2], placeMap[args.place][1][ord(char) - ord('A')]))
-                else:
-                    logger.info('学号={0},场馆={1},时间段为明天的{2}'.format(args.id, placeMap[args.place][2], placeMap[args.place][1][ord(char) - ord('A')]))
+        # time.sleep(0.5)
+        while True:
+            self.refreshFlag = False  # 替代goto
+            self.wait_and_click_path(PlacePath.format(placeMap[args.place][0]))
+            logger.info("进入预约界面")
+            ConfirmButton = self.wait_element_path("/html/body/div[1]/div[3]/div/div/div[3]/button")
+            try:
+                # time.sleep(1)
+                self.driver.execute_script("arguments[0].scrollIntoView();", ConfirmButton)
+                ConfirmButton.click()
+            except Exception as e:
+                logger.error('“温馨提示”-确认失败')
+                logger.error(str(e))
                 return
-            time.sleep(0.5)
-        logger.warning("没有可用的预约，已返回")
-        return
+                # self.driver.execute_script("arguments[0].scrollIntoView();", ConfirmButton)
+                # time.sleep(1)
+                # ConfirmButton.click()
+
+            timePath = ''
+            if args.today:
+                logger.info("预约今日的。。。")
+                timePath = timePathToday
+            else:
+                logger.info("预约明日的。。。")
+                timePath = timePathTomorrow
+            for char in args.timeFlag:
+                logger.info('预约{0}的{1}'.format(placeMap[args.place][2], placeMap[args.place][1][ord(char) - ord('A')]))
+                if self.BookElement(timePath.format(ord(char) - ord('A') + 1)):
+                    logger.info("以下是预约成功的信息：")
+                    logger.info('预定信息如下')
+                    if args.today:
+                        logger.info('学号={0},场馆={1},时间段为今天的{2}'.format(args.id, placeMap[args.place][2], placeMap[args.place][1][ord(char) - ord('A')]))
+                    else:
+                        logger.info('学号={0},场馆={1},时间段为明天的{2}'.format(args.id, placeMap[args.place][2], placeMap[args.place][1][ord(char) - ord('A')]))
+                    return
+                if self.refreshFlag:
+                    break  # 跳出for循环
+                # time.sleep(0.5)
+            if not self.refreshFlag:
+                logger.warning("没有可用的预约，已返回")
+                return
 
 
     def BookElement(self, path):
@@ -144,12 +157,14 @@ class Booking(object):
         :param path: 资源按钮对应的Xpath
         :return:  如果预约成功，则返回True
         """
+
         try:
             button = self.driver.find_element_by_xpath(path)
             sub_button = self.driver.find_element_by_xpath(path + "/button[1]")
         except NoSuchElementException:
-            logger.warning("Exception:预约尚未开放！")
-            return
+            logger.warning("Exception:预约尚未开放，刷新界面")
+            self.driver.refresh()  # 刷新后会重新回到self.home_url
+            self.refreshFlag = True
 
         if sub_button.get_attribute('disabled') == "true":
             logger.warning("Exception:预约失败，不在可预约时间")
@@ -159,25 +174,35 @@ class Booking(object):
             return False
 
         logger.info("目标时间未满，开始预约")
-        time.sleep(1)
+        # time.sleep(1)
         try:
             button.click()
         except selenium.common.exceptions.ElementNotInteractableException:
             logger.error("Error:按钮不可交互")
-            return
-        time.sleep(1)
-        try:
-            self.driver.find_element_by_xpath("/html/body/div[1]/div[4]/div/div/div[2]/div/div[2]/div[7]/div/div/div[1]/div/div").click()
-        except Exception:
-            logger.error("Exception:未发现checkbox")
+            return False
+        # time.sleep(1)
 
-        time.sleep(0.5)
-        self.wait_and_click_path("/html/body/div[1]/div[4]/div/div/div[3]/button[2]/span")
-        time.sleep(0.5)
-        logger.info("预约成功！")
-        time.sleep(2)
-        return True
+        # 游泳馆的确认框
+        if '游泳馆' in placeMap[args.place][2]:
+            logger.debug('游泳馆的checkbox')
+            try:
+                checkbox = self.wait_element_path("/html/body/div[1]/div[4]/div/div/div[2]/div/div[2]/div[7]/div/div/div[1]/div/div")
+                if '我同意' in self.driver.find_element_by_xpath('/html/body/div/div[4]/div/div/div[2]/div/div[2]/div[7]/div/div/div[1]/label').text:
+                    checkbox.click()  # 这行花费大概5秒钟
+            except Exception:
+                logger.error("Exception:未发现checkbox")
+        # time.sleep(0.5)
+        # self.wait_and_click_path("/html/body/div[1]/div[4]/div/div/div[3]/button[2]/span")
+        self.wait_and_click_path("/html/body/div/div[4]/div/div/div[3]/button[2]")
 
+        if '成功' in self.wait_element_path('/html/body/div/div[5]/div/div/div[1]').text:
+            # time.sleep(0.5)
+            logger.info("预约成功！{0}".format(self.wait_element_path('/html/body/div/div[5]/div/div/div[2]').text))
+            # time.sleep(2)
+            return True
+        else:
+            logger.info("预约失败：{0}".format(self.wait_element_path('/html/body/div/div[5]/div/div/div[2]').text))
+            return False
 
     def wait_url(self, target_url, timeout=10.0):
         """
@@ -265,7 +290,7 @@ class Booking(object):
 
     def checkArgs(self):
         for char in args.timeFlag:
-            if len(placeMap[args.place][1]) <= ord(char) - ord('A'):
+            if len(placeMap[args.place][1]) <= ord(char) - ord('A') or 0 > ord(char) - ord('A'):
                 logger.error("当前场馆[{1}]没有时间段{0}".format(char, args.place))
                 return False
         return True
@@ -282,10 +307,15 @@ class Booking(object):
         logger.info(strs)
 
     def wait(self):
-        logger.info('等待到下一个9点之后开始预约')
-        while datetime.datetime.now().hour < 9 or datetime.datetime.now().hour >= 12:
-            time.sleep(10)
-        time.sleep(10)
+        logger.info('等待到下一个8:59之后开始预约')
+        while True:
+            hour = datetime.datetime.now().hour
+            if hour >= 12:
+                hour -= 24
+            if hour + 0.01 * datetime.datetime.now().minute > 8.59:
+                time.sleep(20)
+                return
+            time.sleep(20)
 
 
 if __name__ == '__main__':
@@ -328,11 +358,6 @@ if __name__ == '__main__':
         # logger.info("Test info")
 
     booking = Booking()
-    if args.wait:
-        booking.info()
-        booking.wait()
     if booking.checkArgs():
-        if args.test:
-            booking.info()
-        else:
-            booking.start()
+        booking.info()
+        booking.start()
