@@ -27,7 +27,6 @@ timeSlice1 = [
     '09:00 - 10:00',
     '10:00 - 11:00',
     '11:00 - 12:00',
-    '12:00 - 13:00',
     '13:00 - 14:00',
     '14:00 - 15:00',
     '15:00 - 16:00',
@@ -35,8 +34,8 @@ timeSlice1 = [
     '17:00 - 18:00',
     '18:00 - 19:00',
     '19:00 - 20:00',
-    '20:00 - 21:00',
-    '21:00 - 22:00']
+    '20:00 - 21:00']
+
 timeSlice2 = [
     '06:00 - 08:00',
     '09:00 - 11:00',
@@ -60,6 +59,7 @@ class Booking(object):
         self.home_url = 'https://booking.hit.edu.cn/sport//#/'
         chrome_options = Options()
         sysstr = platform.system()
+        self.wait()
         # 根据系统类型配置chrome_options
         if sysstr == "Linux":
             chrome_options.add_argument('--headless')  # 16年之后，chrome给出的解决办法，抢了PhantomJS饭碗
@@ -72,11 +72,10 @@ class Booking(object):
         else:
             self.driver = webdriver.Chrome(options=chrome_options)
 
-        self.wait()
         logger.debug("调用chrome")
         t = time.time()
         while self.home_url != self.driver.current_url:
-            if time.time() - t > 10:
+            if time.time() - t > 20:
                 logger.error('登录超时，请检查学号密码')
                 return
             logger.debug("尝试登陆")
@@ -85,7 +84,7 @@ class Booking(object):
             except Exception as e:
                 logger.debug(str(e))
                 self.driver.refresh()
-            time.sleep(1)
+            # time.sleep(1)
 
         self.Book()
         self.driver.quit()
@@ -93,17 +92,23 @@ class Booking(object):
 
     def login(self):
         self.load_url(self.home_url)
-        time.sleep(0.5)
+        t = time.time()
+        while 'ids.hit.edu.cn' not in self.driver.current_url and time.time() - t < 1:
+            time.sleep(0.1)
         if self.home_url == self.driver.current_url:
             return
+        time.sleep(0.1)
         self.driver.find_element_by_id("username").send_keys(args.id)
         self.driver.find_element_by_id("password").send_keys(args.pw)
         self.driver.find_element_by_id("password").send_keys(Keys.ENTER)
-        time.sleep(0.5)
-        if self.home_url == self.driver.current_url:
-            logger.info("登陆成功")
-        else:
-            logger.error("登陆失败")
+
+        t = time.time()
+        while self.home_url != self.driver.current_url:
+            if time.time() - t > 10:
+                logger.error("登陆失败")
+                return
+            time.sleep(0.1)
+        logger.info("登陆成功")
         return
 
 
@@ -117,14 +122,16 @@ class Booking(object):
             try:
                 # time.sleep(1)
                 self.driver.execute_script("arguments[0].scrollIntoView();", ConfirmButton)
+                time.sleep(0.1)
                 ConfirmButton.click()
             except Exception as e:
                 logger.error('“温馨提示”-确认失败')
                 logger.error(str(e))
-                return
-                # self.driver.execute_script("arguments[0].scrollIntoView();", ConfirmButton)
-                # time.sleep(1)
-                # ConfirmButton.click()
+                # return
+                time.sleep(0.1)
+                self.driver.execute_script("arguments[0].scrollIntoView();", ConfirmButton)
+                time.sleep(0.1)
+                ConfirmButton.click()
 
             timePath = ''
             if args.today:
@@ -157,15 +164,17 @@ class Booking(object):
         :param path: 资源按钮对应的Xpath
         :return:  如果预约成功，则返回True
         """
-
         try:
-            button = self.driver.find_element_by_xpath(path)
-            sub_button = self.driver.find_element_by_xpath(path + "/button[1]")
+            # button = self.driver.find_element_by_xpath(path)
+            button = WebDriverWait(self.driver, 1).until(EC.presence_of_element_located((By.XPATH, path)))
+
         except NoSuchElementException:
             logger.warning("Exception:预约尚未开放，刷新界面")
             self.driver.refresh()  # 刷新后会重新回到self.home_url
             self.refreshFlag = True
+            return
 
+        sub_button = self.driver.find_element_by_xpath(path + "/button[1]")
         if sub_button.get_attribute('disabled') == "true":
             logger.warning("Exception:预约失败，不在可预约时间")
             return False
@@ -188,12 +197,12 @@ class Booking(object):
             try:
                 checkbox = self.wait_element_path("/html/body/div[1]/div[4]/div/div/div[2]/div/div[2]/div[7]/div/div/div[1]/div/div")
                 if '我同意' in self.driver.find_element_by_xpath('/html/body/div/div[4]/div/div/div[2]/div/div[2]/div[7]/div/div/div[1]/label').text:
-                    checkbox.click()  # 这行花费大概5秒钟
+                    checkbox.click()
             except Exception:
                 logger.error("Exception:未发现checkbox")
-        # time.sleep(0.5)
-        # self.wait_and_click_path("/html/body/div[1]/div[4]/div/div/div[3]/button[2]/span")
-        self.wait_and_click_path("/html/body/div/div[4]/div/div/div[3]/button[2]")
+        time.sleep(0.1)
+        self.wait_and_click_path("/html/body/div[1]/div[4]/div/div/div[3]/button[2]/span")
+        # self.wait_and_click_path("/html/body/div/div[4]/div/div/div[3]/button[2]")
 
         if '成功' in self.wait_element_path('/html/body/div/div[5]/div/div/div[1]').text:
             # time.sleep(0.5)
@@ -202,6 +211,7 @@ class Booking(object):
             return True
         else:
             logger.info("预约失败：{0}".format(self.wait_element_path('/html/body/div/div[5]/div/div/div[2]').text))
+            self.driver.find_element_by_xpath('/html/body/div/div[5]/div/div/div[3]/button').click()
             return False
 
     def wait_url(self, target_url, timeout=10.0):
@@ -313,7 +323,6 @@ class Booking(object):
             if hour >= 12:
                 hour -= 24
             if hour + 0.01 * datetime.datetime.now().minute > 8.59:
-                time.sleep(20)
                 return
             time.sleep(20)
 
