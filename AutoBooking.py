@@ -44,9 +44,21 @@ timeSlice2 = [
     '12:00 - 14:00',
     '18:00 - 20:00']
 
+timeSlice3 = [
+    '06:00 - 07:00',
+    '07:00 - 08:00',
+    '12:00 - 13:30',
+    '18:00 - 19:00',
+    '19:00 - 20:00',
+    '20:00 - 21:00',
+    '21:00 - 22:00'
+]
+
 placeMap = {
-    '羽毛球正心': [12, timeSlice1, '羽毛球预约-正心楼羽毛球馆B'],
-    '游泳馆': [9, timeSlice2, '游泳预约-游泳馆（4楼泳池）']
+    '羽毛球正心': [12, timeSlice1, '正心楼羽毛球馆B'],
+    '羽毛球体育馆': [11, timeSlice3, '体育馆羽毛球馆'],
+    '羽毛球二区': [10, timeSlice3, '羽毛球预约-二校区活动中心'],
+    '游泳馆': [9, timeSlice2, '游泳馆（4楼泳池）']
 }
 
 
@@ -67,7 +79,8 @@ class Booking(object):
         self.home_url = 'https://booking.hit.edu.cn/sport//#/'
         chrome_options = Options()
         sysstr = platform.system()
-        self.wait()
+        if not args.debug:
+            self.wait()
         # 根据系统类型配置chrome_options
         if sysstr == "Linux":
             chrome_options.add_argument('--headless')  # 16年之后，chrome给出的解决办法，抢了PhantomJS饭碗
@@ -80,7 +93,8 @@ class Booking(object):
             chrome_options.add_argument('--no-sandbox')
             chrome_options.add_argument('--disable-gpu')
             chrome_options.add_argument('blink-settings=imagesEnabled=false')
-            chrome_options.add_argument('--headless')
+            if not args.debug:
+                chrome_options.add_argument('--headless')
             self.driver = webdriver.Chrome(options=chrome_options)
         else:
             self.driver = webdriver.Chrome(options=chrome_options)
@@ -221,7 +235,9 @@ class Booking(object):
 
         try:
             button.click()
-        except selenium.common.exceptions.ElementNotInteractableException:
+        # except selenium.common.exceptions.ElementNotInteractableException:
+        except Exception as e:
+            self.logger.error(str(e))
             self.logger.error("Error:按钮不可交互")
             return False
 
@@ -234,16 +250,17 @@ class Booking(object):
             else:
                 self.logger.error("Exception:未发现checkbox")
 
-        if self.check_element("/html/body/div[1]/div[4]/div/div/div[3]/button[2]/span", 5):
+        if self.check_element("/html/body/div[1]/div[4]/div/div/div[3]/button[2]/span", 30):
             self.driver.find_element_by_xpath("/html/body/div[1]/div[4]/div/div/div[3]/button[2]/span").click()
             # self.wait_and_click_path("/html/body/div/div[4]/div/div/div[3]/button[2]")
         else:
             self.logger.info('预约失败')
-            # return False
+            return False
 
         if self.check_element("/html/body/div/div[5]/div/div/div[1]", 60):
-            if '成功' in self.driver.find_element_by_xpath('/html/body/div/div[5]/div/div/div[1]').text:
+            if '预定成功' == self.driver.find_element_by_xpath('/html/body/div/div[5]/div/div/div[1]').text:
                 self.logger.info("预约成功！{0}".format(self.driver.find_element_by_xpath('/html/body/div/div[5]/div/div/div[2]').text))
+                self.driver.find_element_by_xpath('/html/body/div/div[5]/div/div/div[3]/button').click()
                 return True
             else:
                 self.logger.info("预约失败：{0}".format(self.driver.find_element_by_xpath('/html/body/div/div[5]/div/div/div[2]').text))
@@ -396,7 +413,7 @@ if __name__ == '__main__':
     parser.add_argument('-t', '--test', action="store_true", help="仅输出信息，不进行预约")
     parser.add_argument('--today', action="store_true", help="预约今天，否则都是预约明天")
     parser.add_argument('-v', '--verbose', action="store_true", help='详细输出')
-    parser.add_argument('--wait', action="store_true", help='等待到下一个9点之后开始预约(12点后执行)')
+    parser.add_argument('--debug', action="store_true", help='debug flag')
     # parser.add_argument('-d', '--drv', type=str, default='', help="chromedriver路径")
     parser.add_argument('-l', '--log', type=str, default='./log.txt', help="日志文件路径")
     parser.add_argument('--threads', type=int, default=1, help="冲冲冲")
@@ -432,6 +449,7 @@ if __name__ == '__main__':
     for i in range(args.threads):
         booking_threads[i].join()
 
-    if platform.system() == "Windows":
-        os.system('taskkill /im chromedriver.exe /F')
-        os.system('taskkill /im chrome.exe /F')
+    if not args.debug:
+        if platform.system() == "Windows":
+            os.system('taskkill /im chromedriver.exe /F')
+            os.system('taskkill /im chrome.exe /F')
