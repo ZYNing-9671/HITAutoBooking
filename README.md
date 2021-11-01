@@ -2,31 +2,29 @@
 
 github地址：[https://github.com/xrervip/HITAutoBooking](https://github.com/xrervip/HITAutoBooking)
 
-**Q:如何使用此脚本？**
+## 如何使用
 
-A:
-**使用方法：**
 依赖于python运行环境+chorme+selenium+ chromedriver驱动
 
- 1. 安装**python运行环境**，并：
+ 1. 安装**python3**，并：
 
     ```
     pip install selenium argparse logging
     ```
 
- 2. 安装Chorme浏览器
+ 2. 安装**Chorme**浏览器
 
- 3. 下载安装**chromedriver驱动**。chormedriver 镜像地址: [https://npm.taobao.org/mirrors/chromedriver/](https://npm.taobao.org/mirrors/chromedriver/) 寻找对应您的chrome浏览器的版本即可，解压后将`chromedriver.exe`文件放在chrome浏览器根目录，也就是`chrome.exe`同目录下，同时需要将该目录添加到`环境变量`里 [第二步教程](https://www.cnblogs.com/lfri/p/10542797.html)
+ 3. 下载安装**chromedriver**并添加到Path。chormedriver 镜像地址: [https://npm.taobao.org/mirrors/chromedriver/](https://npm.taobao.org/mirrors/chromedriver/) 
 
- 4. 定时（预约一般于9点开放）启动python脚本，建议于9点后数分钟内启动
+ 4. 定时启动python脚本
 
  **参数格式：**
 
 
 ```
-usage: AutoBooking.py [-h] [-t] [--today] [-v] [--wait] [-d DRV] [-l LOG] id pw {游泳馆,羽毛球正心} timeFlag
+usage: AutoBooking.py [-h] [-t] [--today] [-v] [-l LOG] [--threads THREADS] [--debug] [--headless] [--nowait] id pw {游泳馆,羽毛球正心} timeFlag
 
-HIT 自动预约脚本
+HIT 资源自动预约脚本
 
 positional arguments:
   id                 学号
@@ -39,8 +37,11 @@ optional arguments:
   -t, --test         仅输出信息，不进行预约
   --today            预约今天，否则都是预约明天
   -v, --verbose      详细输出
-  --wait             等待到下一个9点之后开始预约(12点后执行)
   -l LOG, --log LOG  日志文件路径
+  --threads THREADS  并行线程数
+  --debug            debug flag
+  --headless         debug flag
+  --nowait           debug flag
 ```
 **时间段代号**
 
@@ -51,12 +52,17 @@ A\B\C\D 对应预约界面时间段的第1\2\3\4段，比如A对应游泳馆的0
 ```
 python3 AutoBooking.py 21S123456 passwd 羽毛球正心 EABCD
 ```
----
+## 开源许可证
 
-**Q:如何设置定时任务？**
-**A**:在Linux下可以使用crontab [Linux crontab 命令]，(https://www.runoob.com/linux/linux-comm-crontab.html)
-在windows操作系统下可以使用**控制面板->管理工具->任务计划程序**
-下面的定时任务[windows定时任务](https://blog.csdn.net/wd2011063437/article/details/79168735)
+**AGPL-3.0**
 
+简单来说，建议您做到以下几点：
 
+- 任何基于或与本项目有间接接触的项目均使用AGPL-3.0协议
+- 当你使用本项目或对其修改时，如果你所服务的对象向您索要源代码，请不要拒绝
+- 请不要将本项目用于商业用途
+
+## 免责声明
+
+本项目仅供学习交流，严禁用于商业用途，按照**LICENSE**，开发者不对本工具的使用负责。
 

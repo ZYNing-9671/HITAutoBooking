@@ -29,6 +29,7 @@ timeSlice1 = [
     '09:00 - 10:00',
     '10:00 - 11:00',
     '11:00 - 12:00',
+    '12:00 - 13:00',
     '13:00 - 14:00',
     '14:00 - 15:00',
     '15:00 - 16:00',
@@ -66,6 +67,7 @@ placeMap = {
 class Booking(object):
 
     def __init__(self, n, handlers):
+        self.n = n
         self.logger = logging.getLogger(name='AutoBooking[{0}]'.format(n))
         _level = logging.INFO
         if args.verbose:
@@ -79,7 +81,7 @@ class Booking(object):
         self.home_url = 'https://booking.hit.edu.cn/sport//#/'
         chrome_options = Options()
         sysstr = platform.system()
-        if not args.debug:
+        if not args.nowait:
             self.wait()
         # 根据系统类型配置chrome_options
         if sysstr == "Linux":
@@ -93,7 +95,7 @@ class Booking(object):
             chrome_options.add_argument('--no-sandbox')
             chrome_options.add_argument('--disable-gpu')
             chrome_options.add_argument('blink-settings=imagesEnabled=false')
-            if not args.debug:
+            if not args.debug or args.headless:
                 chrome_options.add_argument('--headless')
             self.driver = webdriver.Chrome(options=chrome_options)
         else:
@@ -172,7 +174,10 @@ class Booking(object):
                 ConfirmButton.click()
             except Exception as e:
                 self.logger.error(str(e))
-                self.logger.error('“温馨提示”-确认失败-联系开发者解决此bug')
+                self.logger.error('“温馨提示”-确认失败')
+                if args.debug:
+                    with open('web[{0}][{1}].html'.format(self.n, sys._getframe().f_lineno), 'w') as f:
+                        f.write(self.driver.page_source)
                 return
 
             self.logger.debug("确认时间表已经加载")
@@ -234,11 +239,14 @@ class Booking(object):
         self.logger.info("目标时间未满，开始预约")
 
         try:
-            button.click()
+            sub_button.click()
         # except selenium.common.exceptions.ElementNotInteractableException:
         except Exception as e:
             self.logger.error(str(e))
             self.logger.error("Error:按钮不可交互")
+            if args.debug:
+                with open('web[{0}][{1}].html'.format(self.n, sys._getframe().f_lineno), 'w') as f:
+                    f.write(self.driver.page_source)
             return False
 
         if '游泳馆' in placeMap[args.place][2]:
@@ -258,12 +266,17 @@ class Booking(object):
             return False
 
         if self.check_element("/html/body/div/div[5]/div/div/div[1]", 60):
-            if '预定成功' == self.driver.find_element_by_xpath('/html/body/div/div[5]/div/div/div[1]').text:
-                self.logger.info("预约成功！{0}".format(self.driver.find_element_by_xpath('/html/body/div/div[5]/div/div/div[2]').text))
-                self.driver.find_element_by_xpath('/html/body/div/div[5]/div/div/div[3]/button').click()
+            text_title = self.driver.find_element_by_xpath('/html/body/div/div[5]/div/div/div[1]').text
+            text = self.driver.find_element_by_xpath('/html/body/div/div[5]/div/div/div[2]').text
+            self.logger.info('{0}:{1}'.format(text_title, text))
+            if args.debug:
+                if '由于预约过于火爆' in text:
+                    with open('web[{0}][{1}].html'.format(self.n, sys._getframe().f_lineno), 'w') as f:
+                        f.write(self.driver.page_source)
+
+            if '预定成功' in text_title or '预定成功' in text:
                 return True
             else:
-                self.logger.info("预约失败：{0}".format(self.driver.find_element_by_xpath('/html/body/div/div[5]/div/div/div[2]').text))
                 self.driver.find_element_by_xpath('/html/body/div/div[5]/div/div/div[3]/button').click()
                 return False
         else:
@@ -413,10 +426,11 @@ if __name__ == '__main__':
     parser.add_argument('-t', '--test', action="store_true", help="仅输出信息，不进行预约")
     parser.add_argument('--today', action="store_true", help="预约今天，否则都是预约明天")
     parser.add_argument('-v', '--verbose', action="store_true", help='详细输出')
-    parser.add_argument('--debug', action="store_true", help='debug flag')
-    # parser.add_argument('-d', '--drv', type=str, default='', help="chromedriver路径")
     parser.add_argument('-l', '--log', type=str, default='./log.txt', help="日志文件路径")
-    parser.add_argument('--threads', type=int, default=1, help="冲冲冲")
+    parser.add_argument('--threads', type=int, default=1, help="并行线程数")
+    parser.add_argument('--debug', action="store_true", help='debug flag')
+    parser.add_argument('--headless', action="store_true", help='debug flag')
+    parser.add_argument('--nowait', action="store_true", help='debug flag')
     args = parser.parse_args()
 
     # 加载日志
